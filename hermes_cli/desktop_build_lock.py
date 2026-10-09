@@ -98,37 +98,38 @@ class DesktopBuildLock:
 
         self.path.parent.mkdir(parents=True, exist_ok=True)
         handle = self.path.open("a+", encoding="utf-8")
-        if _try_acquire_file_lock(handle):
+        try:
+            if _try_acquire_file_lock(handle):
+                self._handle = handle
+                return True
+            if not wait:
+                return False
+
+            # Blocking mode queues behind the holder; say so instead of appearing
+            # to hang with no output (the update path would rather wait for the
+            # in-flight build it depends on than fail the update).
+            print("→ Waiting for another Hermes desktop dependency install or build to finish...")
+            print(f"  Lock: {self.path}")
+            from gateway.status import _release_file_lock
+
+            try:
+                import fcntl
+
+                fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+            except ImportError:
+                # Windows has no fcntl; poll gateway.status's msvcrt lock.
+                import time
+
+                while not _try_acquire_file_lock(handle):
+                    _release_file_lock(handle)
+                    time.sleep(1.0)
             self._handle = handle
             return True
-        if not wait:
-            handle.close()
-            return False
-
-        # Blocking mode queues behind the holder; say so instead of appearing
-        # to hang with no output (the update path would rather wait for the
-        # in-flight build it depends on than fail the update).
-        print("→ Waiting for another Hermes desktop dependency install or build to finish...")
-        print(f"  Lock: {self.path}")
-        from gateway.status import _release_file_lock
-
-        try:
-            import fcntl
-
-            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
-        except ImportError:
-            # Windows has no fcntl; gateway.status's non-blocking try below is
-            # the best-effort serialization there (msvcrt.locking), so poll it.
-            import time
-
-            while True:
-                if _try_acquire_file_lock(handle):
-                    self._handle = handle
-                    return True
-                _release_file_lock(handle)
-                time.sleep(1.0)
-        self._handle = handle
-        return True
+        finally:
+            # A lock error or Ctrl-C before ownership transfers must not leave
+            # an open descriptor (or a just-acquired kernel lock) in its traceback.
+            if self._handle is not handle:
+                handle.close()
 
     def release(self) -> None:
         """Release the lock when held.  Safe to call more than once."""

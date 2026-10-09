@@ -1708,101 +1708,99 @@ def cmd_gui(args: argparse.Namespace):
             print("  Wait for it to finish, then retry.")
             sys.exit(2)
 
-    needs_build = not skip_build and (
-        force_build or _desktop_build_needed(desktop_dir, PROJECT_ROOT, source_mode=source_mode)
-    )
-    npm = None
     try:
-        if needs_build:
-            build_env = source_build_env(env, explicit=force_build or getattr(args, "build_only", False))
-            npm = shutil.which("npm", path=build_env["PATH"])
-            env["PATH"] = build_env["PATH"]
-        if skip_build:
-            _check_desktop_skip_build(
-                desktop_dir, PROJECT_ROOT, source_mode=source_mode, packaged_executable=packaged_executable
-            )
-        elif needs_build:
-            prepare_source_dependencies(PROJECT_ROOT, ("ui-tui", "web", "apps/desktop"), env=build_env,
-                                        explicit=force_build or getattr(args, "build_only", False))
-            built = build_prepared_desktop(desktop_dir, source_mode=source_mode, npm=npm, env=build_env)
-            if not source_mode:
-                # None only when the build was skipped under its own Desktop: reopen the app it kept.
-                packaged_executable = built or packaged_executable
-        else:
-            build_label = "source build" if source_mode else "packaged app"
-            desktop_launch_notice(f"✓ Desktop {build_label} is up to date (content stamp matches)", source_mode=source_mode)
-    except (OSError, subprocess.SubprocessError, RuntimeError) as exc:
-        print(f"✗ Desktop GUI build failed: {exc}")
-        if build_lock is not None:
-            build_lock.release()
-        raise SystemExit(1) from exc
-
-    # Best-effort and idempotent; a failure must never stop the app from launching.
-    # An app-grid launch (DESKTOP_STARTUP_ID) must not write its own entry while the
-    # shell still has the app in STARTING, so it defers the write until Electron
-    # reports the window on screen (#111906). --build-only spawns no app: write now.
-    from hermes_cli.linux_desktop_entry import launched_from_shell
-    build_only = bool(getattr(args, "build_only", False))
-    deferred_entry = _register_linux_desktop_entry(defer=launched_from_shell() and not build_only)
-
-    # --build-only: produce the artifact but do NOT launch. The installer's
-    # --update flow drives the rebuild headlessly and launches the desktop
-    # itself (detached, after the old exe has exited); launching here would
-    # block the installer. Verify the artifact exists so a silent "built
-    # nothing" can't slip past.
-    if build_only:
-        if source_mode:
-            if not _desktop_dist_exists(desktop_dir):
-                print(f"✗ --build-only --source produced no dist at: {desktop_dir / 'dist'}")
-                sys.exit(1)
-            print(f"✓ Desktop source build ready at {desktop_dir / 'dist'} (not launching; --build-only)")
-        elif packaged_executable is None:
-            print(f"✗ --build-only produced no launchable app at: {desktop_dir / 'release'}")
-            print("  Expected an unpacked Electron app for the current OS.")
-            sys.exit(1)
-        else:
-            print(f"✓ Desktop packaged app ready: {packaged_executable} (not launching; --build-only)")
-        if build_lock is not None:
-            build_lock.release()
-        return
-
-    if source_mode:
-        print("→ Launching Hermes Desktop from source build...")
-        # Launch only the prepared runtime. npm exec can provision a missing
-        # Electron package, including when --skip-build was requested.
-        electron = _electron_dir(PROJECT_ROOT)
+        needs_build = not skip_build and (
+            force_build or _desktop_build_needed(desktop_dir, PROJECT_ROOT, source_mode=source_mode)
+        )
+        npm = None
         try:
-            executable = electron / "dist" / (electron / "path.txt").read_text(encoding="utf-8-sig").strip()
-            if not executable.is_file():
-                raise FileNotFoundError(executable)
-        except OSError as exc:
-            print(f"✗ Prepared Electron runtime is missing: {exc}")
+            if needs_build:
+                build_env = source_build_env(env, explicit=force_build or getattr(args, "build_only", False))
+                npm = shutil.which("npm", path=build_env["PATH"])
+                env["PATH"] = build_env["PATH"]
+            if skip_build:
+                _check_desktop_skip_build(
+                    desktop_dir, PROJECT_ROOT, source_mode=source_mode, packaged_executable=packaged_executable
+                )
+            elif needs_build:
+                prepare_source_dependencies(PROJECT_ROOT, ("ui-tui", "web", "apps/desktop"), env=build_env,
+                                            explicit=force_build or getattr(args, "build_only", False))
+                built = build_prepared_desktop(desktop_dir, source_mode=source_mode, npm=npm, env=build_env)
+                if not source_mode:
+                    # None only when the build was skipped under its own Desktop: reopen the app it kept.
+                    packaged_executable = built or packaged_executable
+            else:
+                build_label = "source build" if source_mode else "packaged app"
+                desktop_launch_notice(f"✓ Desktop {build_label} is up to date (content stamp matches)", source_mode=source_mode)
+        except (OSError, subprocess.SubprocessError, RuntimeError) as exc:
+            print(f"✗ Desktop GUI build failed: {exc}")
             raise SystemExit(1) from exc
-        launch_command = [str(executable), "."]
-    else:
-        if packaged_executable is None:
-            print(f"✗ Desktop package build completed but no launchable app was found at: {desktop_dir / 'release'}")
-            print("  Expected an unpacked Electron app for the current OS.")
-            sys.exit(1)
-        launch_command = _packaged_desktop_launch_command(
-            _installed_desktop_launch_target(desktop_dir, packaged_executable))
-        launch_command.extend(config_electron_flags)
-    if getattr(args, "local", False):
-        launch_command.append("--local")
-    # Out-of-band preview escape hatch (#97213): a fullscreened preview pane
-    # owns all input, and Wayland has no xdotool/wmctrl to break out from a
-    # terminal. `hermes desktop --close-preview` rides the single-instance
-    # argv so a second CLI invocation unlocks the running app.
-    if getattr(args, "close_preview", False):
-        launch_command.append("--close-preview")
-    launch_command.extend(_explicit_profile_args())
-    if not source_mode:
-        desktop_launch_notice(f"→ Launching packaged Hermes Desktop: {' '.join(launch_command)}")
-    # The launch target is ready; the fixups above finished mutating the
-    # packaged tree. Electron is the long-lived handoff, so release the build
-    # lock now — an open Desktop window must never block a future rebuild.
-    if build_lock is not None:
-        build_lock.release()
+
+        # Best-effort and idempotent; a failure must never stop the app from launching.
+        # An app-grid launch (DESKTOP_STARTUP_ID) must not write its own entry while the
+        # shell still has the app in STARTING, so it defers the write until Electron
+        # reports the window on screen (#111906). --build-only spawns no app: write now.
+        from hermes_cli.linux_desktop_entry import launched_from_shell
+        build_only = bool(getattr(args, "build_only", False))
+        deferred_entry = _register_linux_desktop_entry(defer=launched_from_shell() and not build_only)
+
+        # --build-only: produce the artifact but do NOT launch. The installer's
+        # --update flow drives the rebuild headlessly and launches the desktop
+        # itself (detached, after the old exe has exited); launching here would
+        # block the installer. Verify the artifact exists so a silent "built
+        # nothing" can't slip past.
+        if build_only:
+            if source_mode:
+                if not _desktop_dist_exists(desktop_dir):
+                    print(f"✗ --build-only --source produced no dist at: {desktop_dir / 'dist'}")
+                    sys.exit(1)
+                print(f"✓ Desktop source build ready at {desktop_dir / 'dist'} (not launching; --build-only)")
+            elif packaged_executable is None:
+                print(f"✗ --build-only produced no launchable app at: {desktop_dir / 'release'}")
+                print("  Expected an unpacked Electron app for the current OS.")
+                sys.exit(1)
+            else:
+                print(f"✓ Desktop packaged app ready: {packaged_executable} (not launching; --build-only)")
+            return
+
+        if source_mode:
+            print("→ Launching Hermes Desktop from source build...")
+            # Launch only the prepared runtime. npm exec can provision a missing
+            # Electron package, including when --skip-build was requested.
+            electron = _electron_dir(PROJECT_ROOT)
+            try:
+                executable = electron / "dist" / (electron / "path.txt").read_text(encoding="utf-8-sig").strip()
+                if not executable.is_file():
+                    raise FileNotFoundError(executable)
+            except OSError as exc:
+                print(f"✗ Prepared Electron runtime is missing: {exc}")
+                raise SystemExit(1) from exc
+            launch_command = [str(executable), "."]
+        else:
+            if packaged_executable is None:
+                print(f"✗ Desktop package build completed but no launchable app was found at: {desktop_dir / 'release'}")
+                print("  Expected an unpacked Electron app for the current OS.")
+                sys.exit(1)
+            launch_command = _packaged_desktop_launch_command(
+                _installed_desktop_launch_target(desktop_dir, packaged_executable))
+            launch_command.extend(config_electron_flags)
+        if getattr(args, "local", False):
+            launch_command.append("--local")
+        # Out-of-band preview escape hatch (#97213): a fullscreened preview pane
+        # owns all input, and Wayland has no xdotool/wmctrl to break out from a
+        # terminal. `hermes desktop --close-preview` rides the single-instance
+        # argv so a second CLI invocation unlocks the running app.
+        if getattr(args, "close_preview", False):
+            launch_command.append("--close-preview")
+        launch_command.extend(_explicit_profile_args())
+        if not source_mode:
+            desktop_launch_notice(f"→ Launching packaged Hermes Desktop: {' '.join(launch_command)}")
+        # The launch target is ready; the fixups above finished mutating the
+        # packaged tree. Electron is the long-lived handoff, so release the build
+        # lock now — an open Desktop window must never block a future rebuild.
+    finally:
+        if build_lock is not None:
+            build_lock.release()
     pass_fds: tuple[int, ...] = ()
     if deferred_entry is not None:
         env = deferred_entry.child_env(env)

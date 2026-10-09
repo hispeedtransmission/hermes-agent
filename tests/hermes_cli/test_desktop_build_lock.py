@@ -10,8 +10,19 @@ from unittest.mock import patch
 
 import pytest
 
-from hermes_cli import main_desktop as cli_desktop
+# Boot once at collection, before the per-test home-I/O guard: entry-point
+# activation probes the checkout's parent, not the fixture's HERMES_HOME.
+from hermes_cli import main, main_desktop as cli_desktop, source_build
 from hermes_cli.desktop_build_lock import DesktopBuildLock
+
+
+@pytest.fixture(autouse=True)
+def _isolated_build_tools(monkeypatch):
+    # These are lock contracts, not PM provisioning tests. Never install tools
+    # or mutate a dependency tree just to reach the injected build failure.
+    monkeypatch.setattr(cli_desktop, "_desktop_launch_env", lambda _: ({}, []))
+    monkeypatch.setattr(source_build, "source_build_env", lambda *a, **k: {"PATH": ""})
+    monkeypatch.setattr(source_build, "prepare_source_dependencies", lambda *a, **k: None)
 
 
 def _checkout(tmp_path: Path) -> Path:
@@ -106,7 +117,7 @@ def test_desktop_build_lock_is_keyed_by_checkout(tmp_path):
 
 def test_gui_reports_missing_source_before_constructing_build_lock(tmp_path, monkeypatch, capsys):
     root = tmp_path / "broken-hermes-agent"
-    monkeypatch.setattr("hermes_cli.main.PROJECT_ROOT", root, raising=False)
+    monkeypatch.setattr(main, "PROJECT_ROOT", root)
 
     args = argparse.Namespace()
     with patch(
@@ -123,7 +134,7 @@ def test_gui_reports_missing_source_before_constructing_build_lock(tmp_path, mon
 
 def test_gui_refuses_contended_build_before_checking_freshness(tmp_path, monkeypatch):
     root = _checkout(tmp_path)
-    monkeypatch.setattr("hermes_cli.main.PROJECT_ROOT", root, raising=False)
+    monkeypatch.setattr(main, "PROJECT_ROOT", root)
 
     holder = DesktopBuildLock(root)
     assert holder.acquire() is True
@@ -152,7 +163,7 @@ def test_gui_releases_lock_before_packaged_electron_handoff(tmp_path, monkeypatc
     executable.parent.mkdir(parents=True)
     executable.write_text("", encoding="utf-8")
 
-    monkeypatch.setattr("hermes_cli.main.PROJECT_ROOT", root, raising=False)
+    monkeypatch.setattr(main, "PROJECT_ROOT", root)
     # The lock is checkout-keyed via the profile-common Hermes root; pin it so
     # the holder and the handoff probe agree regardless of the runner's home.
     monkeypatch.setenv("HERMES_HOME", str(tmp_path / "hermes-home"))
@@ -182,9 +193,12 @@ def test_gui_releases_lock_before_packaged_electron_handoff(tmp_path, monkeypatc
 def test_gui_releases_lock_after_build_failure(tmp_path, monkeypatch, capsys):
     """A failed build must not deadlock the next `hermes desktop`."""
     root = _checkout(tmp_path)
-    monkeypatch.setattr("hermes_cli.main.PROJECT_ROOT", root, raising=False)
+    monkeypatch.setattr(main, "PROJECT_ROOT", root)
+
+    built = []
 
     def failing_build(*_args, **_kwargs):
+        built.append(True)
         raise RuntimeError("tsc missing: ENOTEMPTY node_modules race")
 
     with patch("hermes_cli.main_desktop._desktop_launch_env", return_value=({}, [])), \
@@ -194,6 +208,7 @@ def test_gui_releases_lock_after_build_failure(tmp_path, monkeypatch, capsys):
         cli_desktop.cmd_gui(_args(build_only=True))
 
     assert exc.value.code == 1
+    assert built == [True], "the test must reach the failing builder"
     successor = DesktopBuildLock(root)
     assert successor.acquire() is True, "build lock was not released after a failed build"
     successor.release()
@@ -202,7 +217,7 @@ def test_gui_releases_lock_after_build_failure(tmp_path, monkeypatch, capsys):
 def test_update_path_waits_for_a_held_lock(tmp_path, monkeypatch, capsys):
     """`hermes update`'s desktop rebuild queues behind a holder instead of failing the update."""
     from hermes_cli import source_build as source_build_mod
-    from hermes_cli.main_desktop import _refresh_installed_desktop_apps
+
 
     root = _checkout(tmp_path)
 
@@ -223,18 +238,25 @@ def test_update_path_waits_for_a_held_lock(tmp_path, monkeypatch, capsys):
     def fake_build_prepared_desktop(desktop_dir, *, source_mode, npm, env, icons=None):
         built.append(True)
 
-    monkeypatch.setattr(source_build_mod, "_install_configured_features_missing_deps", lambda *_: None, raising=False)
+    monkeypatch.setattr("hermes_cli.main_install_repair._install_configured_features_missing_deps", lambda *_: None)
+    monkeypatch.setattr(source_build_mod, "source_product_current", lambda *_: False)
+    monkeypatch.setattr(cli_desktop, "_packaged_desktop_current_for_head", lambda *_: False)
+    monkeypatch.setattr("hermes_cli.memory_provider_migration.migrate_all_homes", lambda: None)
+    monkeypatch.setattr("hermes_cli.left_core_migration.migrate_all_homes", lambda: None)
     monkeypatch.setattr(source_build_mod, "source_frontends", lambda _root: ("ui-tui", "web"), raising=False)
     monkeypatch.setattr(source_build_mod, "source_build_env", lambda **_kw: {"PATH": "/usr/bin"}, raising=False)
     monkeypatch.setattr(source_build_mod, "prepare_source_dependencies", lambda *_a, **_kw: None, raising=False)
     monkeypatch.setattr(source_build_mod, "build_source_tui", lambda *_a, **_kw: None, raising=False)
     monkeypatch.setattr(source_build_mod, "build_source_web", lambda *_a, **_kw: None, raising=False)
-    monkeypatch.setattr(source_build_mod, "_refresh_installed_desktop_apps", lambda *_a, **_kw: None, raising=False)
+    monkeypatch.setattr(cli_desktop, "_refresh_installed_desktop_apps", lambda *_a, **_kw: None)
     monkeypatch.setattr("hermes_cli.desktop_build_lock.DesktopBuildLock", _ReleaseOnEnter)
     monkeypatch.setattr("hermes_cli.main_desktop.build_prepared_desktop", fake_build_prepared_desktop)
     monkeypatch.setattr("hermes_cli.update_stage.publish_stage", lambda _s: None, raising=False)
 
-    source_build_mod.build_update_products(root, desktop=True)
+    try:
+        source_build_mod.build_update_products(root, desktop=True)
+    finally:
+        holder.release()
 
     assert release_calls == [True], "update path must acquire the lock in wait mode"
     assert built == [True]
@@ -288,7 +310,8 @@ def test_a_running_update_refuses_a_direct_desktop_build(tmp_path):
         assert _desktop_lock_free(root), "a refused build kept the desktop build lock"
     finally:
         holder.communicate("", timeout=30)
-    assert DesktopBuildLock(root).acquire() is True  # the update released it: the build proceeds
+    with DesktopBuildLock(root):  # the update released it: the build proceeds
+        pass
 
 
 def _desktop_lock_free(root: Path) -> bool:
