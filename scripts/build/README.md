@@ -103,6 +103,10 @@ npm fallback. Install pnpm 11.20 or later on PATH before preparing the workspace
 The generated workspace policy preserves the root overrides, version-specific
 lifecycle allowlist, and 14-day release-age gate with the existing exceptions.
 Public hoisting preserves the source tree's existing npm-style resolution.
+The version-scoped `.pnpmfile.cjs` correction declares get-windows 9.3.0's actual
+macOS/Linux/Windows support: pnpm 11 otherwise infers Windows-only from its name
+when it is optional. Its checksum and platform metadata are generated into the
+lockfile; lifecycle permissions remain unchanged.
 
 ```sh
 node scripts/build/node-deps.mjs --source "$PWD" --reuse \
