@@ -1,11 +1,7 @@
 diff --git a/index.js b/index.js
-index 56c26025074cbcf218e3ec4d810662da93f8024e..d2008411763940cea7bc2188ca71ead5100bab16 100644
 --- a/index.js
 +++ b/index.js
-@@ -396,7 +396,13 @@ module.exports = class CachePolicy {
-         this._assertRequestHasHeaders(req);
- 
-         // In all circumstances, a cache MUST NOT ignore the must-revalidate directive
+@@ -399 +399,7 @@
 -        if (this._rescc['must-revalidate']) {
 +        // Security-zeroed lifetimes are not ordinary expiry. Neither max-stale
 +        // nor stale-while-revalidate may override these reuse prohibitions.
@@ -14,6 +10,3 @@ index 56c26025074cbcf218e3ec4d810662da93f8024e..d2008411763940cea7bc2188ca71ead5
 +            this._rescc['must-revalidate'] ||
 +            (this._isShared && (this._rescc['proxy-revalidate'] ||
 +                (this._resHeaders['set-cookie'] && !this._rescc.public && !this._rescc.immutable)))) {
-             return this._evaluateRequestMissResult(req);
-         }
- 

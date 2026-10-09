@@ -35,7 +35,7 @@ overrides:
 pnpmfileChecksum: sha256-6ToffyJzjORKnwnXr7ck03kZMj+HUVxo55aoMmVsofM=
 
 patchedDependencies:
-  http-cache-semantics@4.3.0: e5fb8610b0e054c60e327b277d361629937d922cf6b25e6660eeaf9890d670c7
+  http-cache-semantics@4.3.0: 1dcee0ecaf3f314dc656bcb72faf8278bd8f6bcda372156b664c5f48988b8299
 
 importers:
 
@@ -10701,7 +10701,7 @@ snapshots:
       domutils: 4.0.2
       entities: 8.0.0
 
-  http-cache-semantics@4.3.0(patch_hash=e5fb8610b0e054c60e327b277d361629937d922cf6b25e6660eeaf9890d670c7):
+  http-cache-semantics@4.3.0(patch_hash=1dcee0ecaf3f314dc656bcb72faf8278bd8f6bcda372156b664c5f48988b8299):
     optional: true
 
   http-proxy-agent@7.0.2(supports-color@10.2.2):
@@ -11200,7 +11200,7 @@ snapshots:
     dependencies:
       '@npmcli/agent': 2.2.2(supports-color@10.2.2)
       cacache: 18.0.4
-      http-cache-semantics: 4.3.0(patch_hash=e5fb8610b0e054c60e327b277d361629937d922cf6b25e6660eeaf9890d670c7)
+      http-cache-semantics: 4.3.0(patch_hash=1dcee0ecaf3f314dc656bcb72faf8278bd8f6bcda372156b664c5f48988b8299)
       is-lambda: 1.0.1
       minipass: 7.1.3
       minipass-fetch: 3.0.5
