@@ -65,16 +65,16 @@ function makeFakeUnixTerminal(srcRoot) {
 
 // ─── optional native helper tests ───────────────────────────────────
 
-test('a missing Linux HUD toolchain leaves no empty package directories', () => {
+test('an unavailable Linux HUD helper leaves no empty package directories', () => {
   const tmp = fs.mkdtempSync(join(os.tmpdir(), 'hermes-hud-'))
   const warnings = []
   const originalWarn = console.warn
   console.warn = message => warnings.push(String(message))
   try {
     const distDir = join(tmp, 'dist')
-    assert.equal(buildHudModifierMonitor({ source: join(tmp, 'missing-source'), distDir, platform: 'linux', arch: 'x64' }), null)
+    assert.equal(buildHudModifierMonitor({ source: join(tmp, 'missing-source'), distDir, platform: 'linux', arch: process.arch }), null)
     assert.equal(existsSync(join(distDir, 'native')), false)
-    assert.match(warnings.join('\n'), /desktop packaging continues/)
+    assert.match(warnings.join('\n'), process.platform === 'linux' ? /desktop packaging continues/ : /needs a native build/)
   } finally {
     console.warn = originalWarn
     fs.rmSync(tmp, { recursive: true, force: true })
