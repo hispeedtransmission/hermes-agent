@@ -27,6 +27,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { load } from 'js-yaml'
 import { test } from 'vitest'
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..')
@@ -68,6 +69,23 @@ test('electron dependency is exactly pinned', () => {
 })
 
 test('lockfile resolves the pinned electron', () => {
+  const pnpmLock = path.join(REPO_ROOT, 'pnpm-lock.yaml')
+
+  if (fs.existsSync(pnpmLock)) {
+    const lock = load(fs.readFileSync(pnpmLock, 'utf8')) as {
+      importers: Record<string, { devDependencies: Record<string, { specifier: string; version: string }> }>
+      packages: Record<string, unknown>
+    }
+
+    const spec = electronSpec(desktopPkg())
+    const entry = lock.importers['apps/desktop'].devDependencies.electron
+    assert.equal(entry.specifier, spec)
+    assert.equal(entry.version.split('(')[0], spec)
+    assert.ok(Object.hasOwn(lock.packages, `electron@${spec}`))
+
+    return
+  }
+
   if (!fs.existsSync(ROOT_LOCK)) {
     return
   } // skip if lockfile not present

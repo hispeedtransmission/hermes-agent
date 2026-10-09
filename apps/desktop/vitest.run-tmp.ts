@@ -14,6 +14,10 @@ export default function setup(): () => void {
   process.env.TMPDIR = root
   process.env.TEMP = root
   process.env.TMP = root
+  // Scratch may itself live inside a real repository. A non-repo fixture must
+  // never discover (or switch branches in) that ancestor checkout.
+  process.env.GIT_CEILING_DIRECTORIES = [root, process.env.GIT_CEILING_DIRECTORIES]
+    .filter(Boolean).join(path.delimiter)
 
   return () => fs.rmSync(root, { recursive: true, force: true })
 }
