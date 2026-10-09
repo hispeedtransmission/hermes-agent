@@ -246,6 +246,18 @@ def test_stable_git_uses_remote_identity_without_moving_local_tags(update_tree, 
         return run(command, *args, **kwargs)
 
     monkeypatch.setattr(subprocess, 'run', guarded_run)
+    # Fetch now runs in a contained child; inject refusal at the git boundary
+    # without bypassing the real local-repository fetch for the positive cases.
+    from hermes_cli import update_custody
+    run_git = update_custody.run_git
+
+    def guarded_git(git_cmd, arguments, **kwargs):
+        if arguments[:1] == ['fetch'] and t.wanted in arguments and server == 'fetch-refused':
+            return subprocess.CompletedProcess([*git_cmd, *arguments], 128, stdout='',
+                                               stderr='fixture: raw SHA wants disabled')
+        return run_git(git_cmd, arguments, **kwargs)
+
+    monkeypatch.setattr(update_custody, 'run_git', guarded_git)
     if server == 'fetch-refused':
         with pytest.raises(SystemExit) as error:
             cli_main.cmd_update(t.args)

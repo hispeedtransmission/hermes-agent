@@ -38,7 +38,8 @@ test('pnpm installs a locked union, proves reuse, and rejects partial or changed
     const artifact = readFileSync(join(source, 'node_modules/installed'), 'utf8')
     prepareNodeDependencies({ ...options, install: false })
     assert.equal(readFileSync(join(source, 'node_modules/installed'), 'utf8'), artifact)
-    rmSync(join(source, 'web/node_modules/web-only'))
+    // pnpm may inject this local dependency as a directory rather than a link.
+    rmSync(join(source, 'web/node_modules/web-only'), { recursive: true })
     assert.throws(() => prepareNodeDependencies({ ...options, install: false }), /disabled/)
     prepareNodeDependencies(options)
     assert.ok(existsSync(join(source, 'web/node_modules/web-only/package.json')))
