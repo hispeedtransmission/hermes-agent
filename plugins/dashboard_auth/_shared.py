@@ -245,9 +245,14 @@ def verify_jwt(
         # foreign kid) -> InvalidCodeError (None / next provider). Folding both into 503 produced #94558.
         raise classify_jwks_lookup_error(exc) from exc
     try:
+        # Fresh options at this trust boundary: never reuse diagnostic decode
+        # state or inherit mutable defaults (GHSA-gvp8-978c-rx2q).
         return jwt.decode(
             token, signing_key.key, algorithms=algorithms, audience=audience, issuer=issuer, leeway=leeway,
-            options={"require": ["exp", "iat", "aud", "iss", "sub"]})
+            options={"require": ["exp", "iat", "aud", "iss", "sub"],
+                     "verify_signature": True, "verify_exp": True, "verify_nbf": True,
+                     "verify_iat": True, "verify_aud": True, "verify_iss": True,
+                     "verify_sub": True, "verify_jti": True})
     except jwt.ExpiredSignatureError as exc:
         raise InvalidCodeError(f"{label} expired: {exc}") from exc
     except jwt.ImmatureSignatureError as exc:
