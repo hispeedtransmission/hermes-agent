@@ -55,9 +55,14 @@ def verify_nas_fire_token(*, token: str, expected_audience: str, jwks_or_key: Op
             signing_key = _get_jwk_client(jwks_or_key).get_signing_key_from_jwt(token).key
         else:
             signing_key = jwks_or_key  # inline PEM public key (test / pinned-key deployments)
+        # Keep verification state fresh and explicit even if another JWT consumer
+        # has changed shared defaults (GHSA-gvp8-978c-rx2q).
         decode_kwargs: dict[str, Any] = dict(
             algorithms=["RS256", "RS384", "RS512", "ES256", "ES384"], audience=expected_audience,
-            leeway=leeway_seconds, options={"require": ["exp", "aud"]})
+            leeway=leeway_seconds, options={"require": ["exp", "aud"],
+                "verify_signature": True, "verify_exp": True, "verify_nbf": True,
+                "verify_iat": True, "verify_aud": True, "verify_iss": True,
+                "verify_sub": True, "verify_jti": True})
         if issuer:
             decode_kwargs["issuer"] = issuer
         claims = jwt.decode(token, signing_key, **decode_kwargs)
