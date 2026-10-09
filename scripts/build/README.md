@@ -96,6 +96,44 @@ The receipt does not validate arbitrary edits inside installed packages and
 never skips product compilation. CI saves the prepared tree before packaging
 can mutate it, and before unrelated build/signing failures can discard it.
 
+## pnpm source installations
+
+A checkout carrying `pnpm-workspace.yaml` or `pnpm-lock.yaml` uses pnpm, never an
+npm fallback. Install pnpm 11.20 or later on PATH before preparing the workspace.
+The generated workspace policy preserves the root overrides, version-specific
+lifecycle allowlist, and 14-day release-age gate with the existing exceptions.
+Public hoisting preserves the source tree's existing npm-style resolution.
+
+```sh
+node scripts/build/node-deps.mjs --source "$PWD" --reuse \
+  --workspace ui-tui --workspace web --workspace apps/desktop
+# Read-only verification; does not install or discharge source-completion debt:
+node scripts/build/node-deps.mjs --source "$PWD" --reuse --no-install \
+  --workspace ui-tui --workspace web --workspace apps/desktop
+pnpm --dir ui-tui/packages/hermes-ink run build
+pnpm --dir ui-tui run build
+pnpm --dir web run build
+pnpm --dir apps/desktop run typecheck
+pnpm --dir apps/desktop run build
+pnpm --dir apps/desktop run builder --dir --publish never
+pnpm run test:pnpm
+```
+
+Preparation uses a frozen pnpm install over the selected union, root, and local
+`file:` workspace dependencies. A stale install cleans only generated dependency
+directories. `node_modules/.hermes-pnpm-deps.json` is written only after successful
+installation and binds the Node/pnpm versions, selection, lock/workspace/manifests,
+configuration environment, pnpm installed metadata, and installed package manifests.
+It does not manufacture npm's hidden lock or attest to arbitrary package contents.
+Product/native/packaging receipts also include pnpm inputs. Existing Git
+`core.hooksPath` is authoritative: root prepare leaves it unchanged, without force.
+
+These dependency/build commands neither run cross-profile maintenance nor clear
+pending source-completion work. The full completion tail still owns launchers,
+profile/skill sync, config/plugin migrations and its final source stamp. Do not
+call it until those effects are authorized. PM still owns the pinned Node runtime;
+this pnpm provider does not change Python environments or fleet lifecycle.
+
 ## Frontend products
 
 ```sh

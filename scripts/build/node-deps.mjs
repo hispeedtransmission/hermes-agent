@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os'
 import { delimiter, dirname, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
+import { preparePnpmDependencies } from './pnpm-deps.mjs'
 
 // npm.cmd needs a shell. Use npm's JS entrypoint so paths remain argv on Windows.
 export function npmCommand({ env = process.env } = {}) {
@@ -95,6 +96,9 @@ export function prepareNodeDependencies({ source, workspaces, env = process.env,
     throw new Error('Select at least one workspace; implicit all-workspace installation is not allowed')
   }
   const manifest = JSON.parse(readFileSync(join(source, 'package.json'), 'utf8'))
+  if (existsSync(join(source, 'pnpm-workspace.yaml')) || existsSync(join(source, 'pnpm-lock.yaml'))) {
+    return preparePnpmDependencies({ source, workspaces, env, reuse, install, nativeToolchain })
+  }
   const lock = JSON.parse(readFileSync(join(source, 'package-lock.json'), 'utf8'))
   const workspacePaths = Object.values(lock.packages || {})
     .filter(entry => entry.link)

@@ -1453,7 +1453,15 @@ def build_prepared_desktop(desktop_dir: Path, *, source_mode: bool, npm: str, en
         print("  → No Developer ID configured; ad-hoc signing this local rebuild "
               "(CSC_IDENTITY_AUTO_DISCOVERY=false)")
     build_args = ["--icons", str(icons)] if icons else []
-    build_cmd = [npm, "run", "build", "--", *build_args]
+    separator = ["--"]
+    if (desktop_dir.parents[1] / "pnpm-lock.yaml").is_file():
+        pnpm = shutil.which("pnpm", path=build_env["PATH"])
+        if pnpm is None:
+            raise RuntimeError("This checkout requires pnpm on PATH")
+        npm = pnpm
+        # Unlike npm, pnpm forwards a literal -- to the script's argument parser.
+        separator = []
+    build_cmd = [npm, "run", "build", *separator, *build_args]
     staging_dir = None if source_mode else _desktop_staging_dir(desktop_dir)
     if staging_dir is not None:
         # electron-builder packs in place; only the verified staging tree may
@@ -1465,7 +1473,7 @@ def build_prepared_desktop(desktop_dir: Path, *, source_mode: bool, npm: str, en
     try:
         run_in_custody(desktop_dir.parents[1], build_cmd, f"Building desktop {build_label}", cwd=desktop_dir, env=build_env)
         if staging_dir is not None:
-            run_in_custody(desktop_dir.parents[1], [npm, "run", "builder", "--", "--dir", "--publish", "never",
+            run_in_custody(desktop_dir.parents[1], [npm, "run", "builder", *separator, "--dir", "--publish", "never",
                            f"-c.directories.output={staging_dir}"], "Packaging the desktop app",
                            cwd=desktop_dir, env=build_env)
         packaged_executable = (

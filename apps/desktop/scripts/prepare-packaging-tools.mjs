@@ -20,9 +20,18 @@ export function pinnedPackageRoot(source, name) {
     directory = parent
   }
   const installed = JSON.parse(fs.readFileSync(path.join(directory, 'package.json'), 'utf8'))
-  const lock = JSON.parse(fs.readFileSync(path.join(source, 'package-lock.json'), 'utf8'))
-  const key = path.relative(source, directory).split(path.sep).join('/')
-  if (!lock.packages?.[key] || lock.packages[key].version !== installed.version || installed.name !== name) {
+  const pnpmLock = path.join(source, 'pnpm-lock.yaml')
+  let pinned
+  if (fs.existsSync(pnpmLock)) {
+    const lock = require('js-yaml').load(fs.readFileSync(pnpmLock, 'utf8'))
+    const store = fs.realpathSync(path.join(source, 'node_modules/.pnpm')) + path.sep
+    pinned = directory.startsWith(store) && !!lock.packages?.[`${name}@${installed.version}`]
+  } else {
+    const lock = JSON.parse(fs.readFileSync(path.join(source, 'package-lock.json'), 'utf8'))
+    const key = path.relative(source, directory).split(path.sep).join('/')
+    pinned = lock.packages?.[key]?.version === installed.version
+  }
+  if (!pinned || installed.name !== name) {
     throw new Error(`Installed ${name} is not the source's lock-pinned package; prepare Node dependencies first`)
   }
   return directory

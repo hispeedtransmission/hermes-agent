@@ -8,6 +8,8 @@ import { fileDigest, treeDigest, preparationRequired } from './prepared-packagin
 function nativeIdentity(source) {
   return createHash('sha256').update(JSON.stringify([
     fileDigest(path.join(source, 'package-lock.json')),
+    ...(fs.existsSync(path.join(source, 'pnpm-lock.yaml')) ? ['pnpm-lock.yaml', 'pnpm-workspace.yaml'] : [])
+      .map(file => fileDigest(path.join(source, file))),
     fileDigest(path.join(source, 'apps/desktop/package.json')),
     fileDigest(path.join(import.meta.dirname, 'stage-native-deps.mjs')),
     fileDigest(path.join(import.meta.dirname, 'prepared-native-deps.mjs')),

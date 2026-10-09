@@ -1,0 +1,62 @@
+packages:
+  - apps/*
+  - ui-tui
+  - ui-tui/packages/*
+  - web
+  - tests-js
+allowBuilds:
+  electron-winstaller@5.4.0: true
+  electron@40.10.2: true
+  esbuild@0.28.1: true
+  fsevents@2.3.2: true
+  fsevents@2.3.3: true
+  get-windows@9.3.0: true
+  lefthook@2.1.14: true
+  node-pty@1.1.0: true
+  unicode-animations: false
+engineStrict: true
+linkWorkspacePackages: true
+minimumReleaseAge: 20160
+minimumReleaseAgeExclude:
+  - '@assistant-ui/*'
+  - assistant-cloud
+  - assistant-stream
+  - '@radix-ui/*'
+  - radix-ui
+  - safe-content-frame
+  - react-router
+  - eslint
+  - '@eslint/*'
+  - tar
+  - concurrently
+  - fast-uri
+  - minimatch
+  - brace-expansion
+  - js-yaml
+  - nanoid
+  - mermaid
+  - dompurify
+  - vite
+  - rolldown
+  - '@rolldown/*'
+  - '@oxc-project/types'
+  - lightningcss
+  - postcss
+overrides:
+  '@electron/osx-sign>isbinaryfile': 5.0.7
+  brace-expansion: 5.0.9
+  dompurify: 3.4.13
+  ip-address: 10.3.1
+  js-yaml@^4: 4.3.1
+  lodash: 4.18.1
+  mermaid: 11.16.1
+  nanoid@^3: 3.3.18
+  nanoid@^6: 6.0.0
+  postcss: 8.5.23
+  protobufjs: ^8.7.1
+  tar: 7.5.22
+  undici@^6: 6.28.0
+  undici@^7: 7.29.0
+  yauzl: ^3.3.1
+publicHoistPattern:
+  - '*'

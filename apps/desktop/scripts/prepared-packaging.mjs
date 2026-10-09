@@ -51,6 +51,7 @@ export function treeDigest(root) {
 /** @param {string} source @returns {string} */
 export function packagingIdentity(source) {
   const files = ['package-lock.json', 'apps/desktop/package.json', 'apps/desktop/electron-builder.config.cjs']
+  if (fs.existsSync(path.join(source, 'pnpm-lock.yaml'))) files.push('pnpm-lock.yaml', 'pnpm-workspace.yaml')
   const recipe = ['prepare-packaging-tools.mjs', 'prepared-packaging.mjs', 'prepare-dmgbuild.mjs', 'prepare_dmgbuild.py', 'windows-bundle-tools.mjs', 'run-electron-builder.mjs']
   return createHash('sha256').update(JSON.stringify([
     ...files.map(file => fileDigest(path.join(source, file))),
