@@ -30,6 +30,7 @@ import crypto from 'node:crypto'
 import { READY_IN_MERGED_OUTPUT_RE } from './backend-ready'
 import { parseRemoteProfileListing } from './connection-registry'
 import { backendProfileArg } from './profile-id-guard'
+import { REMOTE_PROCESS_ARGS_PY } from './remote-process-args'
 import { REMOTE_MARKER_GATE_PY } from './remote-update-marker-programs'
 import { assertBootstrapNotSuperseded, withRemoteTimeout } from './ssh-connection'
 
@@ -664,6 +665,7 @@ async function pidIsOurDashboard(
 
   const script =
     'import os,shlex,subprocess,sys\n' +
+    REMOTE_PROCESS_ARGS_PY +
     `pid=${Number(pid)}\n` +
     `expected=os.path.expanduser(${shq(hermesPath)})\n` +
     // The installer-facing launcher is intentionally preserved for invocation
@@ -678,9 +680,10 @@ async function pidIsOurDashboard(
     `expected_profile=${shq(profile)}\n` +
     `nonce=${shq(spawnNonce)}\n` +
     'try:\n' +
-    ' raw=open(f"/proc/{pid}/cmdline","rb").read()\n' +
-    ' args=[x.decode("utf-8","surrogateescape") for x in raw.split(b"\\0") if x]\n' +
+    ' args=process_args(pid)\n' +
     'except OSError:\n' +
+    // Never reconstruct Darwin argv from ps: spaces/quotes would lose boundaries.
+    ' if sys.platform=="darwin": print("FOREIGN");sys.exit(0)\n' +
     ' try:\n' +
     '  line=subprocess.check_output(["ps","-ww","-o","command=","-p",str(pid)],text=True).strip()\n' +
     ' except subprocess.CalledProcessError:\n' +
