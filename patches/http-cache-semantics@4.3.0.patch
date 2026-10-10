@@ -1,12 +1,22 @@
 diff --git a/index.js b/index.js
 --- a/index.js
 +++ b/index.js
-@@ -399 +399,7 @@
--        if (this._rescc['must-revalidate']) {
-+        // Security-zeroed lifetimes are not ordinary expiry. Neither max-stale
-+        // nor stale-while-revalidate may override these reuse prohibitions.
-+        // Local mitigation for GHSA-ch52-4w7c-c8xp (also present in 4.3.0).
-+        if (!this.storable() || this._rescc['no-cache'] ||
+@@ -371,0 +372,9 @@
++    // Security-zeroed lifetimes must not be revived by stale extensions.
++    // Local mitigation for GHSA-ch52-4w7c-c8xp; upstream remains unresolved.
++    _reuseForbidden() {
++        return !this.storable() || this._rescc['no-cache'] ||
 +            this._rescc['must-revalidate'] ||
 +            (this._isShared && (this._rescc['proxy-revalidate'] ||
-+                (this._resHeaders['set-cookie'] && !this._rescc.public && !this._rescc.immutable)))) {
++                (this._resHeaders['set-cookie'] && !this._rescc.public && !this._rescc.immutable)));
++    }
++
+@@ -399 +408 @@
+-        if (this._rescc['must-revalidate']) {
++        if (this._reuseForbidden()) {
+@@ -709 +718 @@
+-        return this.maxAge() + toNumberOrZero(this._rescc['stale-if-error']) > this.age();
++        return !this._reuseForbidden() && this.maxAge() + toNumberOrZero(this._rescc['stale-if-error']) > this.age();
+@@ -717 +726 @@
+-        return swr > 0 && this.maxAge() + swr > this.age();
++        return !this._reuseForbidden() && swr > 0 && this.maxAge() + swr > this.age();

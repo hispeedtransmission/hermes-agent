@@ -3,8 +3,10 @@
 ## http-cache-semantics 4.3.0
 
 `http-cache-semantics@4.3.0.patch` enforces cache reuse prohibitions before
-`max-stale` or `stale-while-revalidate` handling. It preserves normal stale
-reuse for public cacheable responses.
+`max-stale`, `stale-while-revalidate`, or `stale-if-error` handling. The same
+guard covers direct stale helpers and failed revalidation: an origin 503 must
+not revive a response which the ordinary request path refuses to reuse.
+It preserves normal stale reuse for public cacheable responses.
 
 Upstream GHSA-ch52-4w7c-c8xp advertises no patched release. Some registry audit
 responses claim `>=4.2.1`, but that version is not published, and the problem
